@@ -95,6 +95,28 @@ def getUniqueFileName(folder_path, base_name, ext, counter):
     new_name = f"{base_name.lower()}_{counter:03d}.{ext}"
     return new_name
 
+def isFileComplete(file_path, check_interval=1, stability_count=3):
+  if not os.path.exists(file_path):
+    return False
+  
+  previous_size = -1
+  stable_checks = 0
+
+  while stable_checks < stability_count:
+    try:
+      current_size = os.path.getsize(file_path)
+      if current_size == previous_size and current_size > 0:
+        stable_checks += 1
+      else:
+        stable_checks = 0
+
+      previous_size = current_size
+      time.sleep(check_interval)
+    except (OSError, FileNotFoundError):
+      return False
+    
+  return True
+
 def moveFile(file_path):
   global folder_counts
 
@@ -142,11 +164,35 @@ def moveFiles():
 class DownloadHandler(FileSystemEventHandler):
   def on_created(self, event):
     if not event.is_directory:
-      # second delay to ensure download is complete
-      time.sleep(2)
-      if os.path.exists(event.src_path):
-        print(f"New file detected: {os.path.basename(event.src_path)}")
+      file_name = os.path.basename(event.src_path)
+      file_ext = os.path.splitext(file_name)[1][1:].lower()
+
+      if file_ext in ['tmp', 'crdownload', 'part', 'download']:
+        return
+      
+      print(f"New file detected: {file_name} - Waiting for download to complete...")
+
+      # wait until file is completely downloaded
+      if isFileComplete(event.src_path):
+        print(f"Download complete: {file_name}")
         moveFile(event.src_path)
+      else:
+        print(f"Failed to verify download completion: {file_name}")
+  def on_moved(self, event):
+    if not event.is_directory:
+      file_name = os.path.basename(event.dest_path)
+      file_ext = os.path.splitext(file_name)[1][1:].lower()
+
+      if file_ext in ['tmp', 'crdownload', 'part', 'download']:
+        return
+      
+      print(f"Download completed: {file_name}")
+
+      # delay to ensure file has been written to prevent tmp etc.
+      time.sleep(2)
+
+      if os.path.exists(event.dest_path):
+        moveFile(event.dest_path)
 
 if __name__ == "__main__":
   createFolders()
