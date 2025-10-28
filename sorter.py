@@ -3,6 +3,8 @@ import shutil
 import time
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+from windows_toasts import WindowsToaster, Toast, ToastDisplayImage
+import subprocess
 
 path = "C:/Users/rick-/Desktop/Downloads - sorted/"
 downloads = "C:/Users/rick-/Downloads/"
@@ -83,17 +85,37 @@ font_ext = [
   "ttf", "otf", "woff", "woff2", "eot"
 ]
 
-folder_counts = {folder: 1 for folder in folder_names}
+toaster = WindowsToaster('Downloads Sorter')
+
+def open_sorted_folder():
+  subprocess.Popen(f'explorer "{path}"')
+
+def show_notification(file_name, dest_folder):
+  folder_path = path.replace("/", "\\") + dest_folder
+  newToast = Toast()
+  newToast.text_fields = ['File Sorted!', f'{file_name} has been organized to {dest_folder}']
+  newToast.on_activated = lambda _: subprocess.Popen(f'explorer "{folder_path}"')
+  icon_path = r"C:\Users\rick-\Documents\xampp\htdocs\Rick\Personal\FileExplorerSorter\download.png"
+  if os.path.exists(icon_path):
+    newToast.AddImage(ToastDisplayImage.fromPath(icon_path))
+  toaster.show_toast(newToast)
 
 def createFolders():
   for i in range(len(folder_names)):
     os.makedirs(path + folder_names[i], exist_ok=True)
 
-def getUniqueFileName(folder_path, base_name, ext, counter):
-    if base_name.endswith('s'):
-        base_name = base_name[:-1]
-    new_name = f"{base_name.lower()}_{counter:03d}.{ext}"
-    return new_name
+def getUniqueFileName(dest_path, original_name):
+    base_name, ext = os.path.splitext(original_name)
+
+    if not os.path.exists(os.path.join(dest_path, original_name)):
+      return original_name
+    
+    counter = 1
+    while True:
+      new_name = f"{base_name} ({counter}){ext}"
+      if not os.path.exists(os.path.join(dest_path, new_name)):
+        return new_name
+      counter += 1
 
 def isFileComplete(file_path, check_interval=1, stability_count=3):
   if not os.path.exists(file_path):
@@ -117,9 +139,7 @@ def isFileComplete(file_path, check_interval=1, stability_count=3):
     
   return True
 
-def moveFile(file_path):
-  global folder_counts
-
+def moveFile(file_path, show_toast=False):
   if os.path.isdir(file_path):
     return
   
@@ -141,11 +161,13 @@ def moveFile(file_path):
 
     dest_folder = ext_to_folder.get(file_ext, "Others")
     dest_path = path + dest_folder
-    new_name = getUniqueFileName(dest_path, dest_folder, file_ext, folder_counts[dest_folder])
+    new_name = getUniqueFileName(dest_path, file_name)
 
     shutil.move(file_path, os.path.join(dest_path, new_name))
     print(f"Moved: {file_name} >> {new_name}\n")
-    folder_counts[dest_folder] += 1
+
+    if show_toast:
+      show_notification(new_name, dest_folder)
 
   except PermissionError:
     print(f"Permision denied: Could not move {file_name}")
@@ -159,7 +181,7 @@ def moveFiles():
 
   for file in files:
     file_path = downloads + file
-    moveFile(file_path)
+    moveFile(file_path, show_toast=False)
 
 class DownloadHandler(FileSystemEventHandler):
   def on_created(self, event):
@@ -175,7 +197,7 @@ class DownloadHandler(FileSystemEventHandler):
       # wait until file is completely downloaded
       if isFileComplete(event.src_path):
         print(f"Download complete: {file_name}")
-        moveFile(event.src_path)
+        moveFile(event.src_path, show_toast=True)
       else:
         print(f"Failed to verify download completion: {file_name}")
   def on_moved(self, event):
@@ -192,7 +214,7 @@ class DownloadHandler(FileSystemEventHandler):
       time.sleep(2)
 
       if os.path.exists(event.dest_path):
-        moveFile(event.dest_path)
+        moveFile(event.dest_path, show_toast=True)
 
 if __name__ == "__main__":
   createFolders()
