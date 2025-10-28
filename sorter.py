@@ -1,4 +1,8 @@
-import os, shutil
+import os
+import shutil
+import time
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
 path = "C:/Users/rick-/Desktop/Downloads - sorted/"
 downloads = "C:/Users/rick-/Downloads/"
@@ -79,6 +83,8 @@ font_ext = [
   "ttf", "otf", "woff", "woff2", "eot"
 ]
 
+folder_counts = {folder: 1 for folder in folder_names}
+
 def createFolders():
   for i in range(len(folder_names)):
     os.makedirs(path + folder_names[i], exist_ok=True)
@@ -89,52 +95,78 @@ def getUniqueFileName(folder_path, base_name, ext, counter):
     new_name = f"{base_name.lower()}_{counter:03d}.{ext}"
     return new_name
 
+def moveFile(file_path):
+  global folder_counts
+
+  if os.path.isdir(file_path):
+    return
+  
+  file_name = os.path.basename(file_path)
+  file_ext = os.path.splitext(file_name)[1][1:].lower()
+    
+  try:
+    ext_to_folder = {
+      **{ext: "Documents" for ext in document_ext},
+      **{ext: "PDFs" for ext in pdf_ext},
+      **{ext: "Images" for ext in image_ext},
+      **{ext: "Installers" for ext in installer_ext},
+      **{ext: "Audios" for ext in audio_ext},
+      **{ext: "Videos" for ext in video_ext},
+      **{ext: "Code" for ext in code_ext},
+      **{ext: "Archives" for ext in archive_ext},
+      **{ext: "Fonts" for ext in font_ext},
+    }
+
+    dest_folder = ext_to_folder.get(file_ext, "Others")
+    dest_path = path + dest_folder
+    new_name = getUniqueFileName(dest_path, dest_folder, file_ext, folder_counts[dest_folder])
+
+    shutil.move(file_path, os.path.join(dest_path, new_name))
+    print(f"Moved: {file_name} >> {new_name}\n")
+    folder_counts[dest_folder] += 1
+
+  except PermissionError:
+    print(f"Permision denied: Could not move {file_name}")
+  except FileExistsError:
+    print(f"File already exists: {file_name}")
+  except Exception as e:
+    print(f"Error moving {file_name}: {str(e)}")
+
 def moveFiles():
   files = os.listdir(downloads)
-  folder_counts = {folder: 1 for folder in folder_names}
 
   for file in files:
-    if os.path.isdir(downloads + file):
-      continue
+    file_path = downloads + file
+    moveFile(file_path)
 
-    file_ext = os.path.splitext(file)[1][1:].lower()
-    
-    try:
-      dest_folder = ""
-      if file_ext in document_ext:
-        dest_folder = "Documents"
-      elif file_ext in pdf_ext:
-        dest_folder = "PDFs"
-      elif file_ext in image_ext:
-        dest_folder = "Images"
-      elif file_ext in installer_ext:
-        dest_folder = "Installers"
-      elif file_ext in audio_ext:
-        dest_folder = "Audios"
-      elif file_ext in video_ext:
-        dest_folder = "Videos"
-      elif file_ext in code_ext:
-        dest_folder = "Code"
-      elif file_ext in archive_ext:
-        dest_folder = "Archives"
-      elif file_ext in font_ext:
-        dest_folder = "Fonts"
-      else:
-        dest_folder = "Others"
-
-      dest_path = path + dest_folder
-      new_name = getUniqueFileName(dest_path, dest_folder, file_ext, folder_counts[dest_folder])
-      shutil.move(downloads + file, os.path.join(dest_path, new_name))
-      print(f"Moved: {file} >> {new_name}")
-      folder_counts[dest_folder] += 1
-
-    except PermissionError:
-      print(f"Permision denied: Could not move {file}")
-    except FileExistsError:
-      print(f"File already exists: {file}")
-    except Exception as e:
-      print(f"Error moving {file}: {str(e)}")
+class DownloadHandler(FileSystemEventHandler):
+  def on_created(self, event):
+    if not event.is_directory:
+      # second delay to ensure download is complete
+      time.sleep(2)
+      if os.path.exists(event.src_path):
+        print(f"New file detected: {os.path.basename(event.src_path)}")
+        moveFile(event.src_path)
 
 if __name__ == "__main__":
   createFolders()
+  print("Sorting existing files...")
   moveFiles()
+
+  print(f"\nStarting file watcher for: {downloads}")
+  print("Press Ctrl+C to stop...\n")
+
+  event_handler = DownloadHandler()
+  observer = Observer()
+  observer.schedule(event_handler, downloads, recursive=False)
+  observer.start()
+
+  try:
+    while True:
+      # how many times to check in folder
+      time.sleep(1)
+  except KeyboardInterrupt:
+    observer.stop()
+    print("\nStopping file watcher...")
+
+  observer.join()
