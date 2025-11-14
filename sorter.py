@@ -19,7 +19,7 @@ folder_names = [
   'Code',
   'Archives',
   'Fonts',
-  '3D'
+  '3D',
   'Others'
 ]
 
@@ -87,7 +87,7 @@ font_ext = [
 ]
 
 threeD_ext = [
-  "stl", "obj", "fbx", "3mf", "ply", "gltf", "glb", "dae", "blend", "max", "ma", "mb"
+  "stl", "obj", "fbx", "3mf", "ply", "gltf", "glb", "dae", "blend", "max", "ma", "mb", "f3d"
 ]
 
 toaster = WindowsToaster('Downloads Sorter')
