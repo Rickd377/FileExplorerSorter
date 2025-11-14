@@ -19,6 +19,7 @@ folder_names = [
   'Code',
   'Archives',
   'Fonts',
+  '3D'
   'Others'
 ]
 
@@ -83,6 +84,10 @@ archive_ext = [
 
 font_ext = [
   "ttf", "otf", "woff", "woff2", "eot"
+]
+
+threeD_ext = [
+  "stl", "obj", "fbx", "3mf", "ply", "gltf", "glb", "dae", "blend", "max", "ma", "mb"
 ]
 
 toaster = WindowsToaster('Downloads Sorter')
@@ -157,6 +162,7 @@ def moveFile(file_path, show_toast=False):
       **{ext: "Code" for ext in code_ext},
       **{ext: "Archives" for ext in archive_ext},
       **{ext: "Fonts" for ext in font_ext},
+      **{ext: "3D" for ext in threeD_ext},
     }
 
     dest_folder = ext_to_folder.get(file_ext, "Others")
